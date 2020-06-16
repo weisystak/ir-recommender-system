@@ -40,7 +40,7 @@ def BCELoss(predi, predj):
 
 def BPRLoss(predi, predj):
     eps = 1e-20
-    return -(predi-predj).sigmoid().log().sum()
+    return - (predi-predj).sigmoid().log().sum()
 
 def timer(title):
     def decorator(func):

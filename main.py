@@ -6,16 +6,16 @@ from tqdm import tqdm
 
 torch.cuda.set_device(1)
 batch_size = 1024
-dim = 32  #  16, 32, 64, 128
+dim = 16  #  16, 32, 64, 128
 lr = 1E-2
 lamb = 1E-3 # 1E-5 # regularization
-n_epochs = 50
+n_epochs = 100
 ng_factor = 1
 
 data_path = "train.csv"
 sub_csv = "submission.csv"
 # ans_file = f"output_BCE/ans_dim{dim}_epoch_{n_epochs}.csv"
-ans_file = f"output/ans_dim{dim}_epoch_{n_epochs}_ng_factor{ng_factor}.csv"
+ans_file = f"output/ans_dim{dim}_epoch_{n_epochs}_ng_factor{ng_factor}_lamb{lamb}.csv"
 # ans_file = f"output/ans_dim{dim}_epoch_{n_epochs}_SGD_{lr}_lamb{lamb}.csv"
 
 X, X_val, mat, n_user, n_item = load_data(data_path, ng_factor=ng_factor, need_val=True, val_rate=0.1)
@@ -33,13 +33,13 @@ model.cuda()
 
 
 # optimizer = optim.SGD( model.parameters(), lr=lr, weight_decay=lamb)
-optimizer = optim.Adam(model.parameters())
+optimizer = optim.Adam(model.parameters(), weight_decay=lamb)
 model.train()
 train_loss = 0
 train_acc = 0
 val_loss = 0
 val_acc = 0
-min_val_loss = 1E10
+min_loss = 1E10
 for epoch in range(n_epochs):
     for uid, iid, jid in tqdm(train_loader):
         optimizer.zero_grad()
@@ -72,9 +72,10 @@ for epoch in range(n_epochs):
     val_acc = val_acc/len(val_data)
     # val_loss = val_loss/len(val_data)
 
-    # if loss < min_val_loss:
-    #     torch.save(model, f"ckpts/svd_{dim}.bin")
-    #     min_val_loss = loss
+    if loss < min_loss:
+        torch.save(model, f"ckpts/svd_{dim}.bin")
+        print("model saved!")
+        min_val_loss = loss
     
     
     # print(f'{epoch:>4d}/{n_epochs:>4d}: train {train_acc:.3f} {train_loss:.3f} {val_acc:.3f} {val_loss:.3f}')

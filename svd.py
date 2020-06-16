@@ -18,3 +18,4 @@ class SVD(nn.Module):
             predj = None
         
         return predi, predj
+        
