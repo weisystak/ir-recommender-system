@@ -1,10 +1,12 @@
 import torch
+from util import *
 
 torch.manual_seed(0)
 
-a = torch.tensor([1,4])
-b = torch.tensor([2,1])
+a = torch.tensor([.1,.4])
+b = torch.tensor([.2,.1])
 print(a@b)
+print(BCELoss(a, b))
 n_user = 100
 n_factors = 5
 n_item = 1000

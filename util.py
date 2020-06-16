@@ -2,6 +2,45 @@ import re
 import numpy as np
 from functools import wraps
 import time
+from torch.utils.data import DataLoader, Dataset
+
+def divide_data(X, val_rate):
+        n = len(X)
+        
+        val_idx = np.random.choice(n, round(val_rate * n), replace=False)
+        mask = np.ones( n, np.bool)
+        mask[val_idx] = 0
+
+        return X[mask], X[val_idx]
+
+class Data(Dataset):
+    def __init__(self, X, mat=None, n_item=None, ng=False):
+        super(Data, self).__init__()
+        self.X = X
+        self.mat = mat
+        self.ng = ng
+        self.n_item = n_item
+
+    def __len__(self):
+        return self.X.shape[0]
+    
+    
+    def __getitem__(self, idx):
+        uid, iid, jid = self.X[idx]
+
+        if self.ng:
+            jid = np.random.randint(self.n_item)
+            while jid in self.mat[uid]:
+                jid = np.random.randint(self.n_item)
+        return uid, iid, jid
+
+def BCELoss(predi, predj):
+        eps = 1e-20
+        return -(predi.sigmoid().log().sum() + (1-predj.sigmoid()+eps).log().sum())
+
+def BPRLoss(predi, predj):
+    eps = 1e-20
+    return -(predi-predj).sigmoid().log().sum()
 
 def timer(title):
     def decorator(func):
@@ -18,66 +57,49 @@ def timer(title):
         return wrapper
     return decorator
 
+
+
+def make_example(mat):
+    X = []  
+    for uid in range(mat.shape[0]):
+        row = mat[uid]
+
+        for iid in row:
+            X.append( (uid, iid, -1) ) 
+
+    X = np.array(X, dtype=np.int)      # ~= (309077 * (ng_factor+1), 3)
+    return X
+
 @timer(title="load data")
-def dataset(data_path, ng_factor=0): 
-    negative_sampling = True
-
-
+def load_data(data_path, ng_factor=0, need_val=False, val_rate=0.1): 
     train_file = open(data_path)
-
     # remove first line (UserId,ItemId)
     next(train_file)    
-
-    X = []
-    ng = []
-
-
-
     max_uid = 0
     max_iid = 0
 
-
+    mat = []
     for line in train_file:
         line = line.split()
         uid, line[0] = line[0].split(',')  # '0,1938'.split(',')
         max_uid = max(int(uid), max_uid)
 
-        ngr = set()
+        row = []
         for iid in line:
-            # [uid, iid, rating]
-            X.append((int(uid), int(iid), 1.0))
-
-            ngr.add(int(iid))
-            max_iid = max(int(iid), max_iid)
-        ng.append(ngr)
-        
-
-    X = np.array(X)     # (309077, 3)
+            iid = int(iid)
+            row.append(iid)
+            max_iid = max(iid, max_iid)
+        mat.append(row)
+    mat = np.array(mat)
 
     n_user = max_uid + 1
     n_item = max_iid + 1
 
-    ngX = []
-    if ng_factor:
-        for uid, ngr in enumerate(ng):
-            n = ng_factor * len(ngr)
-            cnt = 0
+    X = make_example(mat)
+    if need_val:
+        X, X_val = divide_data(X, val_rate)
+    else:
+        X_val = None
 
-            while cnt < n:
-                iid = np.random.randint(n_item)
-                if iid not in ngr:
-                    ngX.append((uid, iid, 0.0))
-                    cnt += 1
-                else:
-                    continue
-        X = np.concatenate((X, ngX))    # (618154, 3)
-    X = X.astype(np.int)
-    return X, n_user, n_item
-
-
-
-
-
-
-if __name__ == "__main__":
-    dataset()
+    X = np.tile(X, (ng_factor, 1))
+    return X, X_val, mat, n_user, n_item
